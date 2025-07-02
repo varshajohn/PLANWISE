@@ -1,4 +1,3 @@
-//TasksAdmin.jsx file have any change in this??
 import React, { useEffect, useState } from 'react';
 import {
   TextField, Button, Table, TableBody, TableCell, TableContainer,
@@ -37,11 +36,14 @@ const StatusBadge = styled(Box)(({ status }) => ({
   fontWeight: 500,
   backgroundColor:
     status === 'Completed' ? '#e8f5e9' : 
-    status === 'In Progress' ? '#fff8e1' : '#ffebee',
+    status === 'In Progress' ? '#fff8e1' : 
+    status === 'To-Do' ? '#e3f2fd' : '#ffebee',
   color:
     status === 'Completed' ? '#2e7d32' : 
-    status === 'In Progress' ? '#ff8f00' : '#c62828',
+    status === 'In Progress' ? '#ff8f00' : 
+    status === 'To-Do' ? '#0d47a1' : '#c62828',
 }));
+
 
 function TasksAdmin({ pathname, router }) {
   const [form, setForm] = useState({
@@ -50,7 +52,7 @@ function TasksAdmin({ pathname, router }) {
     dueDate: '',
     assignedTo: '',
     project: '',
-    status: 'Pending'
+    status: 'To-Do' // Standardized default status
   });
   const [editIndex, setEditIndex] = useState(null);
   const [tasks, setTasks] = useState([]);
@@ -59,18 +61,19 @@ function TasksAdmin({ pathname, router }) {
 
   const subpath = pathname.split('/')[2];
 
+  // Function to normalize status for display
+  const normalizeStatus = (status) => {
+    if (status === 'Pending') return 'To-Do';
+    return status || 'To-Do';
+  };
+
   useEffect(() => {
     if (subpath === 'view') {
       axios.get('http://localhost:5000/tasks')
         .then(res => {
           const formatted = res.data.map(task => ({
-            _id: task._id,
-            title: task.title,
-            description: task.description,
-            dueDate: task.dueDate || '2025-06-30',
-            assignedTo: task.assignedTo,
-            project: task.project,
-            status: task.status || 'Pending'
+            ...task,
+            status: normalizeStatus(task.status)
           }));
           setTasks(formatted);
         });
@@ -91,23 +94,19 @@ function TasksAdmin({ pathname, router }) {
     if (editIndex !== null) {
       axios.put(`http://localhost:5000/taskupdation/${tasks[editIndex]._id}`, form)
         .then(() => {
-          const updated = [...tasks];
-          updated[editIndex] = { ...updated[editIndex], ...form };
-          setTasks(updated);
           setEditIndex(null);
           setForm({
             title: '', description: '', dueDate: '', 
-            assignedTo: '', project: '', status: 'Pending'
+            assignedTo: '', project: '', status: 'To-Do'
           });
           router.navigate('/tasks/view');
         });
     } else {
       axios.post('http://localhost:5000/newTask', form)
-        .then((res) => {
-          setTasks([...tasks, res.data]);
+        .then(() => {
           setForm({
             title: '', description: '', dueDate: '', 
-            assignedTo: '', project: '', status: 'Pending'
+            assignedTo: '', project: '', status: 'To-Do'
           });
           router.navigate('/tasks/view');
         });
@@ -116,7 +115,10 @@ function TasksAdmin({ pathname, router }) {
 
   const handleEdit = (index) => {
     const selected = tasks[index];
-    setForm(selected);
+    setForm({
+        ...selected,
+        status: normalizeStatus(selected.status) // ensure form loads with normalized status
+    });
     setEditIndex(index);
     router.navigate('/tasks/create');
   };
@@ -196,7 +198,7 @@ function TasksAdmin({ pathname, router }) {
                 value={form.status}
                 onChange={handleChange}
               >
-                <MenuItem value="Pending">Pending</MenuItem>
+                <MenuItem value="To-Do">To-Do</MenuItem>
                 <MenuItem value="In Progress">In Progress</MenuItem>
                 <MenuItem value="Completed">Completed</MenuItem>
               </Select>

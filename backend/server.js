@@ -426,3 +426,33 @@ app.listen(PORT, () => {
 
 
 
+
+// Endpoint to get consolidated details for a single task view
+app.get('/task-details/:id', async (req, res) => {
+  try {
+    const task = await Task.findById(req.params.id);
+    if (!task) {
+      return res.status(404).send('Task not found');
+    }
+
+    // Find the project associated with the task
+    const project = await Project.findOne({ title: task.project });
+
+    // Find all team members working on the same project
+    const tasksInProject = await Task.find({ project: task.project });
+    const memberNames = [...new Set(tasksInProject.map(t => t.assignedTo))];
+
+    res.json({
+      task,
+      project,
+      teamOnProject: memberNames,
+      // In a full system, you might look up who created the task. For now, we assume an Admin.
+      assignedBy: 'Admin' 
+    });
+
+  } catch (error) {
+    console.error("Error fetching task details:", error);
+    res.status(500).send("Server error");
+  }
+});
+

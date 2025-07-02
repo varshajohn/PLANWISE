@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { createTheme, styled } from '@mui/material/styles';
+import { createTheme } from '@mui/material/styles';
 import {
   Snackbar,
   Alert,
@@ -20,70 +20,33 @@ import { motion } from 'framer-motion';
 import MemberTasks from './MemberTasks';
 import UpdateStatus from './UpdateStatus';
 import DashboardTeam from './DashboardTeam';
+import TaskDetail from './TaskDetail'; // <-- Import the new component
 import NotificationsNoneIcon from '@mui/icons-material/NotificationsNone';
 
 const NAVIGATION = [
-  {
-    kind: 'header',
-    title: 'Team Member',
-  },
-  {
-    segment: 'dashboard',
-    title: 'Dashboard',
-    icon: <DashboardIcon />,
-  },
+  { kind: 'header', title: 'Main Menu' },
+  { segment: 'dashboard', title: 'Dashboard', icon: <DashboardIcon /> },
   {
     segment: 'tasks',
     title: 'Tasks',
     icon: <AssignmentTurnedInIcon />,
     children: [
-      {
-        segment: 'view',
-        title: 'View',
-        icon: <VisibilityIcon />,
-      },
-      {
-        segment: 'update',
-        title: 'Update Status',
-        icon: <UpdateIcon />,
-      },
+      { segment: 'view', title: 'View', icon: <VisibilityIcon /> },
+      { segment: 'update', title: 'Update Status', icon: <UpdateIcon /> },
     ],
   },
-  {
-    segment: 'logout',
-    title: 'Logout',
-    icon: <LogoutIcon />,
-  },
+  { segment: 'logout', title: 'Logout', icon: <LogoutIcon /> },
 ];
 
 const demoTheme = createTheme({
   palette: {
-    primary: {
-      main: '#0054a8',
-    },
-    secondary: {
-      main: '#0582ff',
-    },
+    primary: { main: '#0054a8' },
+    secondary: { main: '#0582ff' },
+    background: { default: '#f8fafc' },
   },
   typography: {
     fontFamily: '"Poppins", "Roboto", sans-serif',
-    button: {
-      textTransform: 'none',
-      fontWeight: 500
-    }
-  },
-  colorSchemes: { light: true, dark: true },
-  cssVariables: {
-    colorSchemeSelector: 'class',
-  },
-  breakpoints: {
-    values: {
-      xs: 0,
-      sm: 600,
-      md: 600,
-      lg: 1200,
-      xl: 1536,
-    },
+    button: { textTransform: 'none', fontWeight: 500 }
   },
 });
 
@@ -104,16 +67,19 @@ function Teammember({ window: win }) {
   const [tasks, setTasks] = useState([]);
   const [showSnackbar, setShowSnackbar] = useState(false);
   const [unseenCount, setUnseenCount] = useState(0);
+  const [memberName, setMemberName] = useState('');
 
   useEffect(() => {
-    const memberName = localStorage.getItem('loggedInMember');
-    if (!memberName) {
+    const loggedInName = localStorage.getItem('loggedInMember');
+    if (loggedInName) {
+      setMemberName(loggedInName);
+    } else {
       console.warn("No member name found in localStorage");
       return;
     }
 
     axios.get("http://localhost:5000/tasks").then((res) => {
-      const filtered = res.data.filter(task => task.assignedTo === memberName);
+      const filtered = res.data.filter(task => task.assignedTo === loggedInName);
       setTasks(filtered);
 
       const unseen = filtered.filter(task => task.seen === false);
@@ -121,7 +87,6 @@ function Teammember({ window: win }) {
         setUnseenCount(unseen.length);
         setShowSnackbar(true);
 
-        // Mark these tasks as seen
         axios.post("http://localhost:5000/tasks/mark-seen", {
           ids: unseen.map(t => t._id)
         }).catch(err => {
@@ -137,6 +102,11 @@ function Teammember({ window: win }) {
     const basePath = router.pathname.split('/')[1];
     const subPath = router.pathname.split('/')[2];
 
+    // --- NEW: Check for the detail page route FIRST ---
+    if (router.pathname.startsWith('/tasks/view/')) {
+        return <TaskDetail router={router} />;
+    }
+
     if (basePath === 'logout') {
       localStorage.removeItem('loggedInMember');
       globalThis.location.href = '/';
@@ -149,7 +119,8 @@ function Teammember({ window: win }) {
 
     if (basePath === 'tasks') {
       if (subPath === 'view') {
-        return <MemberTasks tasks={tasks} />;
+        // Pass the router so the list items can navigate
+        return <MemberTasks tasks={tasks} router={router} />;
       }
       if (subPath === 'update') {
         return <UpdateStatus tasks={tasks} setTasks={setTasks} />;
@@ -158,18 +129,19 @@ function Teammember({ window: win }) {
 
     return (
       <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
+        className="p-6"
+        initial={{ opacity: 0, y: -20 }}
+        animate={{ opacity: 1, y: 0 }}
         transition={{ duration: 0.5 }}
       >
         <Typography 
           variant="h5" 
-          sx={{ 
-            color: '#0054a8',
-            fontWeight: 600
-          }}
+          sx={{ color: '#0054a8', fontWeight: 600 }}
         >
-          Welcome Team Member! Select an option from the sidebar.
+          {`Welcome ${memberName}! Select an option from the sidebar.`}
+        </Typography>
+        <Typography sx={{ color: 'text.secondary', mt: 1 }}>
+          Here you can view your dashboard, see assigned tasks, and update their status.
         </Typography>
       </motion.div>
     );
@@ -182,8 +154,8 @@ function Teammember({ window: win }) {
       theme={demoTheme}
       window={demoWindow}
       branding={{
-        logo: <img src={logoImage} alt="Logo" />,
-        title: 'Team Member',
+        logo: <img src={logoImage} alt="Logo" className="h-8 w-auto" />,
+        title: memberName || 'Team Member',
       }}
     >
       <DashboardLayout>
@@ -191,36 +163,24 @@ function Teammember({ window: win }) {
           {renderContent()}
         </PageContainer>
 
-        {/*  Snackbar notification */}
        <Snackbar
-  open={showSnackbar}
-  autoHideDuration={4000}
-  onClose={() => setShowSnackbar(false)}
-  anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
->
-  <Alert
-    icon={
-      <NotificationsNoneIcon
-        sx={{
-          color: '#0054a8',
-          border: '2px solid #0054a8',
-          borderRadius: '50%',
-          padding: '2px',
-        }}
-      />
-    }
-    onClose={() => setShowSnackbar(false)}
-    severity="info"
-    sx={{ width: '100%', fontWeight: 500 }}
-  >
-    {`${localStorage.getItem('loggedInMember')}, you have ${unseenCount} new task${unseenCount > 1 ? 's' : ''}!`}
-  </Alert>
-</Snackbar>
-
+          open={showSnackbar}
+          autoHideDuration={4000}
+          onClose={() => setShowSnackbar(false)}
+          anchorOrigin={{ vertical: 'top', horizontal: 'center' }}
+        >
+          <Alert
+            icon={<NotificationsNoneIcon fontSize="inherit" />}
+            onClose={() => setShowSnackbar(false)}
+            severity="info"
+            sx={{ width: '100%', fontWeight: 500 }}
+          >
+            {`${memberName}, you have ${unseenCount} new task${unseenCount > 1 ? 's' : ''}!`}
+          </Alert>
+        </Snackbar>
       </DashboardLayout>
     </AppProvider>
   );
 }
 
 export default Teammember;
-
